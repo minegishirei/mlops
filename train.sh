@@ -1,0 +1,1 @@
+docker compose --profile training run --build --rm train
