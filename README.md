@@ -9,7 +9,8 @@ mlops/
 ├── mlflow/       # MLflow Tracking Server
 ├── prefect/      # Prefect Server
 ├── train/        # 学習Flowと専用依存関係
-├── api/          # Flask UI/APIとBentoMLサーバー
+├── bentoml/      # BentoMLサーバーと専用依存関係
+├── api/          # Flask UI/API
 ├── data/         # MLflow、Prefect、BentoMLの永続データ
 └── docker-compose.yaml
 ```
@@ -45,7 +46,7 @@ curl -X POST http://localhost:8000/api/predict \
 ## テスト
 
 ```bash
-python -m pip install -r api/requirements-flask.txt -r train/requirements.txt pytest
+python -m pip install -r api/requirements.txt -r train/requirements.txt pytest
 python -m pytest
 ```
 

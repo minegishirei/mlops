@@ -43,17 +43,8 @@ services:
         condition: service_healthy
 
   bentoml:
-    build:
-      context: ./api
-      dockerfile: Dockerfile.bentoml
-    command:
-      - bentoml
-      - serve
-      - service:svc
-      - --host
-      - 0.0.0.0
-      - --port
-      - "3000"
+    build: ./bentoml
+    image: mlops-bentoml:isolated
     environment:
       BENTOML_HOME: /bentoml
     ports:
