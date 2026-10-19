@@ -1,0 +1,19 @@
+name: iris_classifier
+version: oewpf4glzgorgxs6
+module: bentoml.sklearn
+labels: {}
+options: {}
+metadata:
+  accuracy: 0.9
+  mlflow_run_id: 61d63c4391cb48e4a27eea3177aa4460
+context:
+  framework_name: sklearn
+  framework_versions:
+    scikit-learn: 1.9.1
+  bentoml_version: 1.4.39
+  python_version: 3.12.15
+signatures:
+  predict:
+    batchable: false
+api_version: v1
+creation_time: '2026-10-19T14:29:07.283684+00:00'

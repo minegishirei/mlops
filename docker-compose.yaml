@@ -1,0 +1,71 @@
+services:
+  mlflow:
+    build: ./mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data/mlflow:/mlflow
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  prefect:
+    build: ./prefect
+    environment:
+      PREFECT_SERVER_API_HOST: 0.0.0.0
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./data/prefect:/root/.prefect
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  train:
+    build: ./train
+    image: mlops-trainer:isolated
+    profiles: ["training"]
+    command: ["python", "training.py"]
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      PREFECT_API_URL: http://prefect:4200/api
+      BENTOML_HOME: /bentoml
+    volumes:
+      - ./data/bentoml:/bentoml
+    depends_on:
+      mlflow:
+        condition: service_healthy
+      prefect:
+        condition: service_healthy
+
+  bentoml:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.bentoml
+    command:
+      - bentoml
+      - serve
+      - service:svc
+      - --host
+      - 0.0.0.0
+      - --port
+      - "3000"
+    environment:
+      BENTOML_HOME: /bentoml
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data/bentoml:/bentoml
+
+  api:
+    build: ./api
+    environment:
+      BENTOML_API_URL: http://bentoml:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - bentoml

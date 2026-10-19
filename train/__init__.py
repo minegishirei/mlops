@@ -1,0 +1,1 @@
+"""Training pipeline container source."""
