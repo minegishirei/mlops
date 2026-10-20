@@ -1,10 +1,12 @@
+import os
 import bentoml
 
 
 @bentoml.service(name="iris-classifier")
 class IrisClassifier:
     def __init__(self) -> None:
-        self.model = bentoml.sklearn.load_model("iris_classifier:latest")
+        model_tag = os.getenv("BENTOML_MODEL_TAG", "iris_classifier:latest")
+        self.model = bentoml.sklearn.load_model(model_tag)
 
     @bentoml.api
     def predict(self, features: list[list[float]]) -> dict[str, list]:

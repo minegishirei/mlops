@@ -70,6 +70,7 @@ services:
     image: mlops-bentoml:isolated
     environment:
       BENTOML_HOME: /bentoml
+      BENTOML_MODEL_TAG: ${BENTOML_MODEL_TAG:-iris_classifier:latest}
     ports:
       - "3000:3000"
     volumes:
