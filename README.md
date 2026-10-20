@@ -71,7 +71,7 @@ docker compose up -d --build bentoml api
 
 ### Prefect UI
 
-- できること: CLIから実行した `iris-training-pipeline` のFlow/Task実行状態とログを確認する。
+- できること: CLIから実行した `iris-training-pipeline` の実行管理。
 - できないこと: この構成では画面からFlowを開始・スケジュールすること。DeploymentとWorkerはまだ設定していません。
 
 学習はプロジェクトディレクトリで次のコマンドから実行します。
