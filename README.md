@@ -20,12 +20,22 @@ mlops/
 Docker Desktopを起動し、プロジェクトディレクトリから実行します。
 
 ```bash
-docker compose up -d mlflow prefect
-docker compose --profile training run --build --rm train
+./start.sh
+```
+
+`worker` は `iris-process` Work Poolを用意し、`iris-training` Deploymentを登録して待機します。Deployment登録後、Prefect UIのDeploymentsからRunを作成し、`n_estimators`、`test_size`、`random_state` を指定して学習できます。学習時のパラメーター・精度・モデルはMLflowに記録されます。
+
+初回の学習がPrefect UIで完了した後、BentoMLサーバーとFlask APIを起動します。BentoMLは起動時にモデルを読み込みます。
+
+```bash
 docker compose up -d --build bentoml api
 ```
 
-学習コマンドはRandomForestを訓練し、MLflowに精度・パラメーター・モデルを記録し、BentoMLのモデルストアへ保存します。学習完了後、BentoMLサーバーとFlask APIを起動してください。
+2回目以降の学習後は、BentoMLを再起動して更新モデルを読み込ませます。
+
+```bash
+docker compose restart bentoml
+```
 
 ## アクセス
 
@@ -71,10 +81,10 @@ docker compose up -d --build bentoml api
 
 ### Prefect UI
 
-- できること: CLIから実行した `iris-training-pipeline` の実行管理。
-- できないこと: この構成では画面からFlowを開始・スケジュールすること。DeploymentとWorkerはまだ設定していません。
+- できること: `iris-training` Deploymentの起動、`n_estimators`・`test_size`・`random_state` の指定、実行状態とログの確認。
+- できないこと: MLflowの実験比較やモデル成果物の詳細確認。これらはMLflow UIで行います。
 
-学習はプロジェクトディレクトリで次のコマンドから実行します。
+Deployment/Workerを使わず、従来どおりCLIから直接学習する場合:
 
 ```bash
 docker compose --profile training run --build --rm train

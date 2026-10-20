@@ -1,2 +1,1 @@
-docker compose up -d mlflow prefect
-docker compose up -d --build bentoml api
+docker compose up -d --build mlflow prefect worker api

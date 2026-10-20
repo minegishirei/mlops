@@ -42,6 +42,29 @@ services:
       prefect:
         condition: service_healthy
 
+  worker:
+    build: ./train
+    image: mlops-trainer:isolated
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        prefect work-pool inspect iris-process >/dev/null 2>&1 || prefect work-pool create --type process iris-process
+        prefect deploy training.py:training_pipeline --name iris-training --pool iris-process --no-prompt
+        prefect worker start --pool iris-process
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      PREFECT_API_URL: http://prefect:4200/api
+      BENTOML_HOME: /bentoml
+    volumes:
+      - ./data/bentoml:/bentoml
+    depends_on:
+      mlflow:
+        condition: service_healthy
+      prefect:
+        condition: service_healthy
+
   bentoml:
     build: ./bentoml
     image: mlops-bentoml:isolated
