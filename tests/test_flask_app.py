@@ -6,6 +6,8 @@ class StubModel:
         return {
             "predictions": [0 for _ in features],
             "class_names": ["setosa" for _ in features],
+            "model_tag": "iris_classifier:test-version",
+            "mlflow_run_id": "test-run-id",
         }
 
 
@@ -24,7 +26,12 @@ def test_predict_returns_class_name():
     response = client.post("/api/predict", json={"features": [[5.1, 3.5, 1.4, 0.2]]})
 
     assert response.status_code == 200
-    assert response.json == {"predictions": [0], "class_names": ["setosa"]}
+    assert response.json == {
+        "predictions": [0],
+        "class_names": ["setosa"],
+        "model_tag": "iris_classifier:test-version",
+        "mlflow_run_id": "test-run-id",
+    }
 
 
 def test_predict_rejects_invalid_feature_count():

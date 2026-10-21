@@ -1,1 +1,1 @@
-docker compose up -d --build bentoml mlflow prefect worker api
+docker compose up -d --build bentoml mlflow prefect worker api otel-collector aspire-dashboard

@@ -11,6 +11,7 @@ mlops/
 ├── train/        # 学習Flowと専用依存関係
 ├── bentoml/      # BentoMLサーバーと専用依存関係
 ├── api/          # Flask UI/API
+├── observability/# OpenTelemetry Collector設定
 ├── data/         # MLflow、Prefect、BentoMLの永続データ
 └── docker-compose.yaml
 ```
@@ -44,6 +45,13 @@ docker compose restart bentoml
 - BentoML API docs: http://localhost:3000/docs
 - MLflow UI: http://localhost:5000
 - Prefect UI: http://localhost:4200
+- Aspire Dashboard (Traces/Metrics): http://localhost:18888
+
+Aspire DashboardのTracesではFlask APIからBentoMLの `model.predict()` までを確認でき、Metricsでは推論件数・エラー・遅延・学習所要時間・稼働モデルタグを確認できます。データは開発用ダッシュボード内に保持され、長期保存はしません。
+
+学習Flow/TaskのTraceには `mlflow.run_id`、`bentoml.model_tag`、精度、パラメーターが付きます。MLflow側にも `otel.trace_id` と `bentoml.model_tag` をtagとして保存します。推論Traceには同じ `mlflow.run_id` と実際にロードされたモデルタグが付き、Aspire Dashboardで `mlops.model.tag` または `mlflow.run_id` を検索して学習と推論を相関できます。
+
+Flaskの予測結果欄にもモデルタグ、MLflow run ID、Trace IDを表示します。Trace IDをAspire DashboardのTrace検索へ貼ると、そのリクエストのFlask・HTTP通信・BentoML推論Spanを開けます。
 
 ## 各画面でできること・できないこと
 

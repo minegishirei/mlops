@@ -32,7 +32,7 @@
       .reset { padding: 8px 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; font: inherit; font-size: 13px; }
       .result-kicker { margin: 0 0 12px; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
       .result-name { min-height: 82px; margin: 0; color: var(--green-dark); font-family: Georgia, "Yu Mincho", serif; font-size: 38px; line-height: 1.2; overflow-wrap: anywhere; }
-      .result-detail { min-height: 42px; margin: 12px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .result-detail { min-height: 42px; margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
       .flower-mark { align-self: flex-end; margin-top: 25px; color: var(--coral); font-family: Georgia, serif; font-size: 48px; line-height: 1; }
       .error { color: #9b3d2e; }
       @media (max-width: 720px) { main { width: min(100% - 28px, 540px); padding-top: 28px; } .masthead { align-items: flex-start; font-size: 10px; } .intro { padding: 36px 0 25px; } .workspace { grid-template-columns: 1fr; } .form-panel, .result-panel { padding: 23px; } .result-panel { min-height: 210px; border-top: 1px solid var(--line); border-left: 0; } }
@@ -82,7 +82,12 @@
           const data = await response.json();
           if (!response.ok) throw new Error(data.error || "予測に失敗しました。");
           resultName.textContent = data.class_names[0];
-          resultDetail.textContent = `クラス ${data.predictions[0]} · Random Forest`;
+          resultDetail.textContent = [
+            `クラス ${data.predictions[0]} · Random Forest`,
+            `Model: ${data.model_tag || "unknown"}`,
+            `MLflow run: ${data.mlflow_run_id || "unknown"}`,
+            `Trace ID: ${response.headers.get("X-Trace-ID") || "unknown"}`,
+          ].join("\n");
         } catch (error) {
           resultName.classList.add("error");
           resultName.textContent = "利用できません";

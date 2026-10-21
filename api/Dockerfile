@@ -6,6 +6,7 @@ COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY flask_app.py ./
+COPY telemetry.py ./
 COPY templates ./templates
 
 ENV PYTHONUNBUFFERED=1

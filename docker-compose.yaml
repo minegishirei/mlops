@@ -25,6 +25,27 @@ services:
       timeout: 5s
       retries: 15
 
+  aspire-dashboard:
+    image: mcr.microsoft.com/aspire/dashboard:latest
+    environment:
+      ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      - "127.0.0.1:18888:18888"
+    expose:
+      - "18889"
+      - "18890"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    expose:
+      - "4317"
+      - "4318"
+    depends_on:
+      - aspire-dashboard
+
   train:
     build: ./train
     image: mlops-trainer:isolated
@@ -34,6 +55,9 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       PREFECT_API_URL: http://prefect:4200/api
       BENTOML_HOME: /bentoml
+      OTEL_SERVICE_NAME: mlops-training
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
     volumes:
       - ./data/bentoml:/bentoml
     depends_on:
@@ -57,6 +81,9 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       PREFECT_API_URL: http://prefect:4200/api
       BENTOML_HOME: /bentoml
+      OTEL_SERVICE_NAME: mlops-training
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
     volumes:
       - ./data/bentoml:/bentoml
     depends_on:
@@ -71,6 +98,7 @@ services:
     environment:
       BENTOML_HOME: /bentoml
       BENTOML_MODEL_TAG: ${BENTOML_MODEL_TAG:-iris_classifier:latest}
+      OTEL_SERVICE_NAME: mlops-bentoml
     ports:
       - "3000:3000"
     volumes:
@@ -80,6 +108,10 @@ services:
     build: ./api
     environment:
       BENTOML_API_URL: http://bentoml:3000
+      BENTOML_MODEL_TAG: ${BENTOML_MODEL_TAG:-iris_classifier:latest}
+      OTEL_SERVICE_NAME: mlops-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
     ports:
       - "8000:8000"
     depends_on:
