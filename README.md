@@ -1,6 +1,39 @@
-# MLflow + Prefect + BentoML
 
-Iris分類の学習をPrefectで実行し、MLflowへ実験を記録、BentoMLでモデルを保存・サービングし、Flaskの画面/APIから推論するサンプルです。各コンテナは専用ディレクトリのDockerfileと依存関係で独立してビルドします。永続データはすべて `data/` 以下に保存されます。
+# MLflow + Perfect + BentoMLを用いたMLOpsサンプルアプリ
+
+
+Iris分類の学習をPrefectで実行し、MLflowへ実験を記録、BentoMLでモデルを保存・サービングし、Flaskの画面/APIから推論するサンプルです。各
+コンテナは専用ディレクトリのDockerfileと依存関係で独立してビルドします。
+
+
+まずはソースコードを入手し、アプリケーションを起動させます。
+
+```sh
+git clone https://github.com/minegishirei/mlops.git
+cd mlops
+./start.sh
+```
+
+Docker Desktopを起動し、プロジェクトディレクトリから実行します。
+
+アプリが起動できたら、Perfectの画面 (http://localhost:4200) にアクセスし、Deploymentに移動します。
+Prefect UIのDeploymentsからRunを作成し、`n_estimators`、`test_size`、`random_state` を指定して学習できます。
+Runボタンを押すと機械学習モデルを生成するパイプラインが起動します。
+
+<img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/1/image.png?raw=true" />
+
+<img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/2/image.png?raw=true" />
+
+学習時のパラメーター・精度・モデルはMLflowに記録されます。
+
+<img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/4/image.png?raw=true" />
+
+初回の学習がPrefect UIで完了した後、
+Flaskサンプルアプリ(http://localhost:8000)から動作チェックをしましょう。
+
+
+<img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/3/image.png?raw=true" />
+
 
 ## ディレクトリ
 
@@ -15,27 +48,6 @@ mlops/
 └── docker-compose.yaml
 ```
 
-## 起動
-
-Docker Desktopを起動し、プロジェクトディレクトリから実行します。
-
-```bash
-./start.sh
-```
-
-`worker` は `iris-process` Work Poolを用意し、`iris-training` Deploymentを登録して待機します。Deployment登録後、Prefect UIのDeploymentsからRunを作成し、`n_estimators`、`test_size`、`random_state` を指定して学習できます。学習時のパラメーター・精度・モデルはMLflowに記録されます。
-
-初回の学習がPrefect UIで完了した後、BentoMLサーバーとFlask APIを起動します。BentoMLは起動時にモデルを読み込みます。
-
-```bash
-docker compose up -d --build bentoml api
-```
-
-2回目以降の学習後は、BentoMLを再起動して更新モデルを読み込ませます。
-
-```bash
-docker compose restart bentoml
-```
 
 ## アクセス
 
@@ -45,7 +57,7 @@ docker compose restart bentoml
 - MLflow UI: http://localhost:5000
 - Prefect UI: http://localhost:4200
 
-## 各画面でできること・できないこと
+## 各サービスでできること・できないこと
 
 ### Flaskブラウザ画面
 
@@ -63,6 +75,86 @@ docker compose restart bentoml
 
 ### BentoML API docs
 
+PyTorch、TensorFlow、Scikit-Learn、XGBoost、LLM（Hugging Faceなど）といった様々なフレームワークで訓練したモデルを、Bentoと呼ばれる標準化されたコンテナ形式で起動させます。
+高性能なREST APIやgRPCのサーバーとしてアクセスできます。
+
+1. 保存： 学習済みのモデルをBentoMLのローカルストアに保存する。
+1. 定義： `service.py` などのファイルで、入力データの受け取りやモデル推論の前処理・後処理（RunnerとServiceの概念）をPythonコードで定義する。
+1. ビルド： 依存関係を含めてひとつの「Bento」としてアーカイブ化する。
+1. 実行・デプロイ： ローカルでAPIサーバーとして起動してテストしたり、Dockerコンテナ化して本番環境にデプロイする。
+
+今回の `service.py`は以下の通りで、
+
+```python
+import os
+import bentoml
+
+
+@bentoml.service(name="iris-classifier")
+class IrisClassifier:
+    def __init__(self) -> None:
+        model_tag = os.getenv("BENTOML_MODEL_TAG", "iris_classifier:latest")
+        self.model = bentoml.sklearn.load_model(model_tag)
+
+    @bentoml.api
+    def predict(self, features: list[list[float]]) -> dict[str, list]:
+        predictions = self.model.predict(features).tolist()
+        class_names = ["setosa", "versicolor", "virginica"]
+        return {
+            "predictions": predictions,
+            "class_names": [class_names[index] for index in predictions],
+        }
+
+
+svc = IrisClassifier
+```
+
+上記のケースはローカル環境での動作のため`./data/bentoml` を経由していますが、
+実戦では起動時にS3からロードするなどのてがあります。
+
+```python
+import os
+import boto3
+import bentoml
+import joblib
+
+@bentoml.service(name="iris-classifier")
+class IrisClassifier:
+    def __init__(self) -> None:
+        # S3からモデルをダウンロードする処理
+        s3_bucket = os.getenv("S3_BUCKET", "my-bucket")
+        s3_key = os.getenv("S3_KEY", "models/iris.pkl")
+        local_model_path = "/tmp/iris.pkl"
+
+        if not os.path.exists(local_model_path):
+            s3 = boto3.client("s3")
+            s3.download_file(s3_bucket, s3_key, local_model_path)
+
+        # 読み込み
+        self.model = joblib.load(local_model_path)
+
+    @bentoml.api
+    def predict(self, features: list[list[float]]) -> dict[str, list]:
+        predictions = self.model.predict(features).tolist()
+        class_names = ["setosa", "versicolor", "virginica"]
+        return {
+            "predictions": predictions,
+            "class_names": [class_names[index] for index in predictions],
+        }
+
+svc = IrisClassifier
+```
+
+これを動かしているコンテナに対して、以下のようにリクエストを投げれます。
+
+```sh
+curl -X 'POST' \
+  'http://localhost:3000/predict' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '[[5.1, 3.5, 1.4, 0.2]]'
+```
+
 - できること:
   - BentoMLの `/predict` APIを直接試し、入力と応答の形式を確認する。
   - かつては、機械学習済みのモデルを pickle形式で 読み込み実行することもあったが、BentoMLではその代替手段であり、より高速な推論が可能。
@@ -71,6 +163,12 @@ docker compose restart bentoml
 
 
 ### MLflow UI
+
+実験管理とモデルレジストリの機能を持つのがMLflowです。
+機械学習のトレーニングを実行した際のパラメータや精度をテーブル形式やグラフ形式で比較検討ができます。
+
+<img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/5/image.png?raw=true" />
+
 
 - http://localhost:5000
 - できること:
@@ -98,19 +196,5 @@ curl -X POST http://localhost:8000/api/predict \
   -d '{"features": [[5.1, 3.5, 1.4, 0.2]]}'
 ```
 
-## テスト
 
-```bash
-python -m pip install -r api/requirements.txt -r train/requirements.txt pytest
-python -m pytest
-```
 
-## 再学習と停止
-
-```bash
-docker compose --profile training run --build --rm train
-docker compose restart bentoml api
-docker compose down
-```
-
-コンテナを停止しても `data/` の内容は残ります。実験履歴・モデルを含めて初期化する場合は、`data/` 内のデータを削除してください。
