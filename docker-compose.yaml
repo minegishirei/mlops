@@ -70,11 +70,15 @@ services:
     image: mlops-bentoml:isolated
     environment:
       BENTOML_HOME: /bentoml
-      BENTOML_MODEL_TAG: ${BENTOML_MODEL_TAG:-iris_classifier:latest}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_MODEL_URI: ${MLFLOW_MODEL_URI:-models:/iris-classifier@champion}
     ports:
       - "3000:3000"
     volumes:
       - ./data/bentoml:/bentoml
+    depends_on:
+      mlflow:
+        condition: service_healthy
 
   api:
     build: ./api

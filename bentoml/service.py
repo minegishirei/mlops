@@ -1,12 +1,15 @@
 import os
 import bentoml
+import mlflow.sklearn
 
 
 @bentoml.service(name="iris-classifier")
 class IrisClassifier:
     def __init__(self) -> None:
-        model_tag = os.getenv("BENTOML_MODEL_TAG", "iris_classifier:latest")
-        self.model = bentoml.sklearn.load_model(model_tag)
+        # 環境変数からMLflowのモデルURIを取得（デフォルトはレジストリのProductionステージ）
+        model_uri = os.getenv("MLFLOW_MODEL_URI", None)
+        # MLflowモデルレジストリから直接モデルをロード
+        self.model = mlflow.sklearn.load_model(model_uri)
 
     @bentoml.api
     def predict(self, features: list[list[float]]) -> dict[str, list]:

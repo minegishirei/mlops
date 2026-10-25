@@ -34,8 +34,8 @@ def fit_classifier(
     return model, accuracy
 
 
-@task(name="train-and-register-model")
-def train_and_register_model(
+@task(name="train-model")
+def train_model(
     n_estimators: int,
     test_size: float,
     random_state: int,
@@ -81,7 +81,7 @@ def training_pipeline(
     test_size: float = 0.2,
     random_state: int = 42,
 ) -> str:
-    return train_and_register_model(
+    return train_model(
         n_estimators=n_estimators,
         test_size=test_size,
         random_state=random_state,

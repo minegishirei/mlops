@@ -19,6 +19,7 @@ Docker Desktopを起動し、プロジェクトディレクトリから実行し
 アプリが起動できたら、Perfectの画面 (http://localhost:4200) にアクセスし、Deploymentに移動します。
 Prefect UIのDeploymentsからRunを作成し、`n_estimators`、`test_size`、`random_state` を指定して学習できます。
 Runボタンを押すと機械学習モデルを生成するパイプラインが起動します。
+学習処理はモデルをMLflowの実験に記録しますが、Model Registryへの登録は自動では行いません。学習後にMLflow UIからモデルを登録し、`Production` に設定してください。登録前でもBentoMLは起動しますが、予測できるのはProductionモデルを登録した後です。
 
 <img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/1/image.png?raw=true" />
 
@@ -78,23 +79,30 @@ mlops/
 PyTorch、TensorFlow、Scikit-Learn、XGBoost、LLM（Hugging Faceなど）といった様々なフレームワークで訓練したモデルを、Bentoと呼ばれる標準化されたコンテナ形式で起動させます。
 高性能なREST APIやgRPCのサーバーとしてアクセスできます。
 
-1. 保存： 学習済みのモデルをBentoMLのローカルストアに保存する。
+1. 保存： 学習済みのモデルをMLflowに記録し、Model Registryに登録する。
 1. 定義： `service.py` などのファイルで、入力データの受け取りやモデル推論の前処理・後処理（RunnerとServiceの概念）をPythonコードで定義する。
 1. ビルド： 依存関係を含めてひとつの「Bento」としてアーカイブ化する。
 1. 実行・デプロイ： ローカルでAPIサーバーとして起動してテストしたり、Dockerコンテナ化して本番環境にデプロイする。
 
-今回の `service.py`は以下の通りで、
+今回の `service.py`はMLflow Model Registryの `Production` モデルを読み込みます。
 
 ```python
 import os
+from functools import cached_property
 import bentoml
+import mlflow.sklearn
 
 
 @bentoml.service(name="iris-classifier")
 class IrisClassifier:
     def __init__(self) -> None:
-        model_tag = os.getenv("BENTOML_MODEL_TAG", "iris_classifier:latest")
-        self.model = bentoml.sklearn.load_model(model_tag)
+        self.model_uri = os.getenv(
+            "MLFLOW_MODEL_URI", "models:/iris-classifier/Production"
+        )
+
+    @cached_property
+    def model(self):
+        return mlflow.sklearn.load_model(self.model_uri)
 
     @bentoml.api
     def predict(self, features: list[list[float]]) -> dict[str, list]:
@@ -109,8 +117,7 @@ class IrisClassifier:
 svc = IrisClassifier
 ```
 
-上記のケースはローカル環境での動作のため`./data/bentoml` を経由していますが、
-実戦では起動時にS3からロードするなどのてがあります。
+この構成ではMLflow Tracking Serverからモデルをロードします。別の構成では、起動時にS3からモデルをロードする方法もあります。
 
 ```python
 import os
@@ -159,7 +166,7 @@ curl -X 'POST' \
   - BentoMLの `/predict` APIを直接試し、入力と応答の形式を確認する。
   - かつては、機械学習済みのモデルを pickle形式で 読み込み実行することもあったが、BentoMLではその代替手段であり、より高速な推論が可能。
 - できないこと:
-  - 学習の開始やモデルの再登録。起動時に `iris_classifier:latest` を読み込んで推論します。
+  - 学習の開始。MLflow UIで手動登録・選択したProductionモデルを使って推論します。
 
 
 ### MLflow UI
@@ -173,14 +180,15 @@ curl -X 'POST' \
 - http://localhost:5000
 - できること:
   - `iris-classification` の実験、学習、記録されたパラメーター・精度・モデル成果物を確認・比較する。
-- できないこと:
-  - この構成ではUIから学習を開始したり、モデルを本番へ昇格したりすること。学習はCLIから実行します。
+  - 学習済みモデルをModel Registryに登録し、バージョンを `Production` にする。
+  - 手順: `iris-classification` 実験を開き、対象Runの `iris_classifier` モデルを選び、`Register model` からモデル名 `iris-classifier` で登録します。続いてRegistryの `iris-classifier` を開き、利用するバージョンを `Production` に設定します。
+- モデルをProductionにした後、予測APIを呼び出してください。すでに別モデルを読み込んだBentoMLに新しいバージョンを反映する場合は、BentoMLを再起動します。
 
 
 ### Prefect UI
 
 - できること: `iris-training` Deploymentの起動、`n_estimators`・`test_size`・`random_state` の指定、実行状態とログの確認。
-- できないこと: MLflowの実験比較やモデル成果物の詳細確認。これらはMLflow UIで行います。
+- できないこと: MLflowの実験比較、Model Registryへの登録やProductionバージョンの選択。これらはMLflow UIで行います。
 
 Deployment/Workerを使わず、従来どおりCLIから直接学習する場合:
 
@@ -195,6 +203,3 @@ curl -X POST http://localhost:8000/api/predict \
   -H 'Content-Type: application/json' \
   -d '{"features": [[5.1, 3.5, 1.4, 0.2]]}'
 ```
-
-
-
