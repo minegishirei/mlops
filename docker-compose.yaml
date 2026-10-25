@@ -71,7 +71,7 @@ services:
     environment:
       BENTOML_HOME: /bentoml
       MLFLOW_TRACKING_URI: http://mlflow:5000
-      MLFLOW_MODEL_URI: ${MLFLOW_MODEL_URI:-models:/iris-classifier@champion}
+      MLFLOW_MODEL_URI: ${MLFLOW_MODEL_URI:-models:/iris-classifier@main}
     ports:
       - "3000:3000"
     volumes:

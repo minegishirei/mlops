@@ -41,7 +41,7 @@ def train_model(
     random_state: int,
 ) -> str:
     mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
-    mlflow.set_experiment("iris-classification")
+    mlflow.set_experiment("iris-classification-proxy")
 
     model, accuracy = fit_classifier(
         n_estimators=n_estimators,

@@ -19,7 +19,15 @@ Docker Desktopを起動し、プロジェクトディレクトリから実行し
 アプリが起動できたら、Perfectの画面 (http://localhost:4200) にアクセスし、Deploymentに移動します。
 Prefect UIのDeploymentsからRunを作成し、`n_estimators`、`test_size`、`random_state` を指定して学習できます。
 Runボタンを押すと機械学習モデルを生成するパイプラインが起動します。
-学習処理はモデルをMLflowの実験に記録しますが、Model Registryへの登録は自動では行いません。学習後にMLflow UIからモデルを登録し、`Production` に設定してください。登録前でもBentoMLは起動しますが、予測できるのはProductionモデルを登録した後です。
+学習処理はモデルをMLflowの実験 `iris-classification-proxy` に記録します。MLflowサーバーが成果物を代理保存・配信するため、学習コンテナやBentoMLと同じファイルシステムを共有する必要はありません。Model Registryへの登録は自動では行わず、学習後にMLflow UIからモデルを登録し、`champion` エイリアスを設定してください。BentoMLは起動時にはモデルを読み込まず、最初の予測時にRegistryから取得します。正しいモデルを登録して `champion` を設定するまでは予測できません。
+
+MLflowのartifact proxy設定を反映するには、プロジェクトディレクトリでコンテナを再ビルドします。
+
+```sh
+docker compose up -d --build mlflow worker bentoml api
+```
+
+以前の `iris-classification` 実験はローカルパスを成果物の保存先として記録しているため、proxy経由では読み込めません。旧実験は保持され、新しい学習は `iris-classification-proxy` に記録されます。
 
 <img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/1/image.png?raw=true" />
 
@@ -30,24 +38,25 @@ Runボタンを押すと機械学習モデルを生成するパイプライン�
 <img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/4/image.png?raw=true" />
 
 初回の学習がPrefect UIで完了した後、
+`Models`タブから `Create Model` で`iris-classifier`という名前で作成します。
+
+<img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/models/image.png?raw=true" />
+
+`Experiments` タブから生成してあるモデルを選択し、 `register`からモデルを紐づけます。
+
+<img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/connect/image.png?raw=true" />
+
+再び `Models`タブから 該当のモデルに対して `main` エイリアスを与えて完成です。
+
+<img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/version/image.png?raw=true" />
+
+サーバーを再起動し
 Flaskサンプルアプリ(http://localhost:8000)から動作チェックをしましょう。
 
 
 <img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/3/image.png?raw=true" />
 
 
-## ディレクトリ
-
-```text
-mlops/
-├── mlflow/       # MLflow Tracking Server
-├── prefect/      # Prefect Server
-├── train/        # 学習Flowと専用依存関係
-├── bentoml/      # BentoMLサーバーと専用依存関係
-├── api/          # Flask UI/API
-├── data/         # MLflow、Prefect、BentoMLの永続データ
-└── docker-compose.yaml
-```
 
 
 ## アクセス
@@ -89,6 +98,7 @@ PyTorch、TensorFlow、Scikit-Learn、XGBoost、LLM（Hugging Faceなど）と�
 ```python
 import os
 from functools import cached_property
+
 import bentoml
 import mlflow.sklearn
 
@@ -97,7 +107,7 @@ import mlflow.sklearn
 class IrisClassifier:
     def __init__(self) -> None:
         self.model_uri = os.getenv(
-            "MLFLOW_MODEL_URI", "models:/iris-classifier/Production"
+            "MLFLOW_MODEL_URI", "models:/iris-classifier@champion"
         )
 
     @cached_property
@@ -176,13 +186,17 @@ curl -X 'POST' \
 
 <img src="https://github.com/minegishirei/store/blob/main/sre/mlops/handson/5/image.png?raw=true" />
 
+また、作成したモデルにラベリング/エイリアスを行うことで
+動作環境のモデルの切り替えも手軽に行えます。
+(先ほどの`BentoML` のソースコードは MLflow のURLを呼びだしていることを思い出してください。)
+
 
 - http://localhost:5000
 - できること:
-  - `iris-classification` の実験、学習、記録されたパラメーター・精度・モデル成果物を確認・比較する。
-  - 学習済みモデルをModel Registryに登録し、バージョンを `Production` にする。
-  - 手順: `iris-classification` 実験を開き、対象Runの `iris_classifier` モデルを選び、`Register model` からモデル名 `iris-classifier` で登録します。続いてRegistryの `iris-classifier` を開き、利用するバージョンを `Production` に設定します。
-- モデルをProductionにした後、予測APIを呼び出してください。すでに別モデルを読み込んだBentoMLに新しいバージョンを反映する場合は、BentoMLを再起動します。
+  - `iris-classification-proxy` 実験の学習、パラメーター、精度、モデル成果物を確認・比較する。
+  - 学習済みモデルをModel Registryに登録し、バージョンに `champion` エイリアスを設定する。
+  - 手順: `iris-classification-proxy` 実験を開き、学習Runの `Logged Models` にある `iris_classifier` を開いて `Register model` を選びます。既存の `iris-classifier` に新しいバージョンとして登録し、Registryの `iris-classifier` でその新バージョンに `champion` エイリアスを割り当てます。Runの `Artifacts` に表示されるファイルパスから手動で登録せず、必ずLogged Modelから登録してください。
+- `champion` を設定した後に予測APIを呼び出してください。すでに別モデルを読み込んだBentoMLに新しいバージョンを反映する場合は、BentoMLを再起動します。
 
 
 ### Prefect UI
